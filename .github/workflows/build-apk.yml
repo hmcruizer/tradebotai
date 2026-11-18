@@ -12,6 +12,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up correct Android project structure
+        run: |
+          mkdir -p app/src/main/java app/src/main/res
+          # Move Android source files into the proper app module structure if they are in root
+          if [ -f "MainActivity.kt" ]; then
+            mv MainActivity.kt app/src/main/java/
+          fi
+          if [ -f "AndroidManifest.xml" ]; then
+            mv AndroidManifest.xml app/src/main/res/
+          fi
+          # Update settings.gradle.kts to include app module if not already set
+          echo "include(\":app\")" >> settings.gradle.kts
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
