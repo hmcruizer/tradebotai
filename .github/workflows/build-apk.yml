@@ -12,18 +12,106 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up correct Android project structure
+      - name: Set up Professional Android Project Structure
         run: |
-          mkdir -p app/src/main/java app/src/main/res
-          # Move Android source files into the proper app module structure if they are in root
+          # Create standard Android directories
+          mkdir -p app/src/main/java/com/tradebot/ai app/src/main/res/values app/src/main/res/layout
+
+          # Move files into proper locations if they exist in root
           if [ -f "MainActivity.kt" ]; then
-            mv MainActivity.kt app/src/main/java/
+            # Ensure proper package declaration if missing
+            if ! grep -q "package com.tradebot.ai" MainActivity.kt; then
+              echo "package com.tradebot.ai" > temp_main.kt
+              cat MainActivity.kt >> temp_main.kt
+              mv temp_main.kt app/src/main/java/com/tradebot/ai/MainActivity.kt
+            else
+              mv MainActivity.kt app/src/main/java/com/tradebot/ai/
+            fi
           fi
+
           if [ -f "AndroidManifest.xml" ]; then
-            mv AndroidManifest.xml app/src/main/res/
+            mv AndroidManifest.xml app/src/main/
           fi
-          # Update settings.gradle.kts to include app module if not already set
-          echo "include(\":app\")" >> settings.gradle.kts
+
+          # Ensure valid settings.gradle.kts
+          echo 'rootProject.name = "TradeBotAI"' > settings.gradle.kts
+          echo 'include(":app")' >> settings.gradle.kts
+
+          # Create a robust root build.gradle.kts if missing or incomplete
+          cat << 'EOF' > build.gradle.kts
+          plugins {
+              id("com.android.application") version "8.2.0" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.0" apply false
+          }
+          EOF
+
+          # Create app-level build.gradle.kts if missing or incomplete
+          cat << 'EOF' > app/build.gradle.kts
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }
+
+          android {
+              namespace = "com.tradebot.ai"
+              compileSdk = 34
+
+              defaultConfig {
+                  applicationId = "com.tradebot.ai"
+                  minSdk = 24
+                  targetSdk = 34
+                  versionCode = 1
+                  versionName = "1.0"
+              }
+
+              buildTypes {
+                  release {
+                      isMinifyEnabled = false
+                      proguardFiles(
+                          getDefaultProguardFile("proguard-android-optimize.txt"),
+                          "proguard-rules.pro"
+                      )
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+          }
+
+          dependencies {
+              implementation("androidx.core:core-ktx:1.12.0")
+              implementation("androidx.appcompat:appcompat:1.6.1")
+              implementation("com.google.android.material:material:1.11.0")
+          }
+          EOF
+
+          # Ensure AndroidManifest.xml exists with proper activity registration
+          if [ ! -f "app/src/main/AndroidManifest.xml" ]; then
+            cat << 'EOF' > app/src/main/AndroidManifest.xml
+            <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+                <uses-permission android:name="android.permission.INTERNET" />
+                <application
+                    android:allowBackup="true"
+                    android:icon="@mipmap/ic_launcher"
+                    android:label="TradeBot AI"
+                    android:supportsRtl="true"
+                    android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+                    <activity
+                        android:name=".MainActivity"
+                        android:exported="true">
+                        <intent-filter>
+                            <action android:name="android.intent.action.MAIN" />
+                            <category android:name="android.intent.category.LAUNCHER" />
+                        </intent-filter>
+                    </activity>
+                </application>
+            </manifest>
+          EOF
+          fi
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -34,8 +122,11 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
+      - name: Generate Gradle Wrapper
+        run: gradle wrapper --gradle-version 8.5
+
       - name: Build Debug APK
-        run: gradle assembleDebug
+        run: ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
